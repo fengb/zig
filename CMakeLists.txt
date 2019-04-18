@@ -60,7 +60,10 @@ if(APPLE AND ZIG_STATIC)
     list(APPEND LLVM_LIBRARIES "${ZLIB}")
 endif()
 
+# Place stage2 artifacts in a common location without installing
 set(ZIG_CPP_LIB_DIR "${CMAKE_BINARY_DIR}/zig_cpp")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${ZIG_CPP_LIB_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${ZIG_CPP_LIB_DIR})
 
 if(ZIG_FORCE_EXTERNAL_LLD)
     find_package(lld)
@@ -257,7 +260,6 @@ else()
         embedded_lld_wasm
         embedded_lld_lib
     )
-    install(TARGETS embedded_lld_elf embedded_lld_coff embedded_lld_mingw embedded_lld_wasm embedded_lld_lib DESTINATION "${ZIG_CPP_LIB_DIR}")
 endif()
 
 # No patches have been applied to SoftFloat-3e
