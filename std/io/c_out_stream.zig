@@ -16,7 +16,7 @@ pub const COutStream = struct {
     }
 
     fn writeFn(out_stream: OutStream, bytes: []const u8) OutStream.Error!void {
-        const self = out_stream.implCast(COutStream);
+        const self = out_stream.iface.?.implCast(COutStream);
         const amt_written = std.c.fwrite(bytes.ptr, 1, bytes.len, self.c_file);
         if (amt_written == bytes.len) return;
         // TODO errno on windows. should we have a posix layer for windows?
@@ -40,10 +40,10 @@ pub const COutStream = struct {
             else => return std.os.unexpectedErrorPosix(@intCast(usize, errno)),
         }
     }
-    
+
     pub fn outStream(self: *COutStream) OutStream {
-        return OutStream {
-            .impl = OutStream.ifaceCast(self),
+        return OutStream{
+            .iface = OutStream.Iface.init(self),
             .writeFn = writeFn,
         };
     }

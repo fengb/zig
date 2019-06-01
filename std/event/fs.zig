@@ -1402,14 +1402,15 @@ pub const OutStream = struct {
 
     async<*mem.Allocator> fn writeFn(out_stream: io.OutStream, bytes: []const u8) io.OutStream.Error!void {
         const self = out_stream.implCast(OutStream);
+        const self = out_stream.iface.?.implCast(OutStream);
         const offset = self.offset;
         self.offset += bytes.len;
         return await (async pwritev(self.loop, self.fd, [][]const u8{bytes}, offset) catch unreachable);
     }
-    
+
     pub fn outStream(self: *OutStream) io.OutStream {
-        return io.OutStream {
-            .impl = io.OutStream.ifaceCast(self),
+        return io.OutStream{
+            .iface = OutStream.Iface.init(self),
             .writeFn = writeFn,
         };
     }
@@ -1429,15 +1430,15 @@ pub const InStream = struct {
     }
 
     async<*mem.Allocator> fn readFn(in_stream: io.InStream, bytes: []u8) io.InStrean.Error!usize {
-        const self = in_stream.implCast(InStream);
+        const self = in_stream.iface.?.implCast(InStream);
         const amt = try await (async preadv(self.loop, self.fd, [][]u8{bytes}, self.offset) catch unreachable);
         self.offset += amt;
         return amt;
     }
-    
+
     pub fn inStream(self: *InStream) io.InStream {
-        return io.InStream {
-            .impl = io.InStream.ifaceCast(self),
+        return io.InStream{
+            .iface = InStream.Iface.init(self),
             .readFn = readFn,
         };
     }

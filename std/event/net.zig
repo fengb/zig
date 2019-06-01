@@ -344,13 +344,13 @@ pub const OutStream = struct {
     }
 
     async<*mem.Allocator> fn writeFn(out_stream: event.io.OutStream, bytes: []const u8) Error!void {
-        const self = out_stream.implCast(OutStream);
+        const self = out_stream.iface.?.implCast(OutStream);
         return await (async write(self.loop, self.fd, bytes) catch unreachable);
     }
     
     pub fn outStream(self: *OutStream) event.io.OutStream {
         return event.io.OutStream {
-            .impl = event.io.OutStream.ifaceCast(self),
+            .iface = OutStream.Iface.init(self),
             .writeFn = writeFn,
         };
     }
@@ -370,13 +370,13 @@ pub const InStream = struct {
     }
 
     async<*mem.Allocator> fn readFn(in_stream: event.io.InStream.Error, bytes: []u8) Error!usize {
-        const self = in_stream.implCast(InStream);
+        const self = in_stream.iface.?.implCast(InStream);
         return await (async read(self.loop, self.fd, bytes) catch unreachable);
     }
     
-    pub fn outStream(self: *InStream) event.io.InStream.Error {
-        return event.io.InStream.Error {
-            .impl = event.io.InStream.Error.ifaceCast(self),
+    pub fn outStream(self: *InStream) event.io.OutStream {
+        return event.io.OutStream {
+            .iface = event.io.OutStream.Iface.init(self),
             .readFn = readFn,
         };
     }
