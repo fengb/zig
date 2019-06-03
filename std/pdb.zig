@@ -680,7 +680,7 @@ const MsfStream = struct {
     }
 
     fn readFn(in_stream: io.InStream, buffer: []u8) io.InStream.Error!usize {
-        const self = in_stream.iface.?.implCast(MsfStream);
+        const self = in_stream.iface.implCast(MsfStream);
         return self.read(buffer) catch |e| switch (e) {
             error.Overflow, error.Unseekable => return error.EndOfStream,
             else => return @errSetCast(io.InStream.Error, e),

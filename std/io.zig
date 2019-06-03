@@ -45,7 +45,7 @@ pub const InStream = struct {
 
     pub const Error = os.WindowsReadError || os.PosixReadError || error{EndOfStream};
 
-    iface: ?Iface,
+    iface: Iface,
 
     /// Return the number of bytes read. If the number read is smaller than buf.len, it
     /// means the stream reached the end. Reaching the end of a stream is not an error
@@ -221,7 +221,7 @@ pub const OutStream = struct {
 
     pub const Error = os.WindowsWriteError || os.PosixWriteError || error{NoSpaceLeft};
 
-    iface: ?Iface,
+    iface: Iface,
 
     writeFn: fn (self: Self, bytes: []const u8) Error!void,
 
@@ -331,7 +331,7 @@ pub fn BufferedInStreamCustom(comptime buffer_size: usize) type {
         }
 
         fn readFn(in_stream: InStream, dest: []u8) InStream.Error!usize {
-            const self = in_stream.iface.?.implCast(Self);
+            const self = in_stream.iface.implCast(Self);
 
             var dest_index: usize = 0;
             while (true) {
@@ -390,7 +390,7 @@ test "io.BufferedInStream" {
         }
 
         fn readFn(in_stream: InStream, dest: []u8) InStream.Error!usize {
-            const self = in_stream.iface.?.implCast(@This());
+            const self = in_stream.iface.implCast(@This());
             if (self.str.len <= self.curr or dest.len == 0)
                 return 0;
 
@@ -456,7 +456,7 @@ pub fn PeekStream(comptime buffer_size: usize) type {
         }
 
         fn readFn(in_stream: InStream, dest: []u8) InStream.Error!usize {
-            const self = in_stream.iface.?.implCast(Self);
+            const self = in_stream.iface.implCast(Self);
 
             // copy over anything putBack()'d
             var pos: usize = 0;
@@ -502,7 +502,7 @@ pub const SliceInStream = struct {
     }
 
     fn readFn(in_stream: InStream, dest: []u8) InStream.Error!usize {
-        const self = in_stream.iface.?.implCast(Self);
+        const self = in_stream.iface.implCast(Self);
         const size = math.min(dest.len, self.slice.len - self.pos);
         const end = self.pos + size;
 
@@ -643,7 +643,7 @@ pub fn BitInStream(endian: builtin.Endian) type {
         }
 
         pub fn read(self_stream: InStream, buffer: []u8) InStream.Error!usize {
-            var self = self_stream.iface.?.implCast(Self);
+            var self = self_stream.iface.implCast(Self);
 
             var out_bits: usize = undefined;
             var out_bits_total = usize(0);
@@ -691,7 +691,7 @@ pub const SliceOutStream = struct {
     }
 
     fn writeFn(out_stream: OutStream, bytes: []const u8) OutStream.Error!void {
-        const self = out_stream.iface.?.implCast(SliceOutStream);
+        const self = out_stream.iface.implCast(SliceOutStream);
 
         assert(self.pos <= self.slice.len);
 
@@ -765,7 +765,7 @@ pub const CountingOutStream = struct {
     }
 
     fn writeFn(out_stream: OutStream, bytes: []const u8) OutStream.Error!void {
-        const self = out_stream.iface.?.implCast(Self);
+        const self = out_stream.iface.implCast(Self);
         try self.child_stream.write(bytes);
         self.bytes_written += bytes.len;
     }
@@ -813,7 +813,7 @@ pub fn BufferedOutStreamCustom(comptime buffer_size: usize) type {
         }
 
         fn writeFn(out_stream: OutStream, bytes: []const u8) OutStream.Error!void {
-            const self = out_stream.iface.?.implCast(Self);
+            const self = out_stream.iface.implCast(Self);
 
             if (bytes.len >= self.buffer.len) {
                 try self.flush();
@@ -854,7 +854,7 @@ pub const BufferOutStream = struct {
     }
 
     fn writeFn(out_stream: OutStream, bytes: []const u8) OutStream.Error!void {
-        const self = out_stream.iface.?.implCast(BufferOutStream);
+        const self = out_stream.iface.implCast(BufferOutStream);
         self.buffer.append(bytes) catch |err| {
             //can only be error.OutOfMemory
             return error.NoSpaceLeft;
@@ -981,7 +981,7 @@ pub fn BitOutStream(endian: builtin.Endian) type {
         }
 
         pub fn write(self_stream: OutStream, buffer: []const u8) OutStream.Error!void {
-            var self = self_stream.iface.?.implCast(Self);
+            var self = self_stream.iface.implCast(Self);
 
             //@NOTE: I'm not sure this is a good idea, maybe flushBits should be forced
             if (self.bit_count > 0) {

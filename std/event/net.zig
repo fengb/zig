@@ -344,7 +344,7 @@ pub const OutStream = struct {
     }
 
     async<*mem.Allocator> fn writeFn(out_stream: event.io.OutStream, bytes: []const u8) Error!void {
-        const self = out_stream.iface.?.implCast(OutStream);
+        const self = out_stream.iface.implCast(OutStream);
         return await (async write(self.loop, self.fd, bytes) catch unreachable);
     }
     
@@ -370,7 +370,7 @@ pub const InStream = struct {
     }
 
     async<*mem.Allocator> fn readFn(in_stream: event.io.InStream.Error, bytes: []u8) Error!usize {
-        const self = in_stream.iface.?.implCast(InStream);
+        const self = in_stream.iface.implCast(InStream);
         return await (async read(self.loop, self.fd, bytes) catch unreachable);
     }
     
