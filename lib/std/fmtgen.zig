@@ -508,7 +508,7 @@ fn formatValue(
     // }
     const T = @TypeOf(value);
     switch (@typeId(T)) {
-        // .Float => return formatFloatValue(value, fmt, options, context, Errors, output),
+        .Float => return formatFloatValue(value, fmt, options, generator),
         .Int, .ComptimeInt => return formatIntValue(value, fmt, options, generator),
         else => comptime unreachable,
     }
@@ -554,22 +554,21 @@ pub fn formatIntValue(
     return formatInt(int_value, radix, uppercase, options, generator);
 }
 
-// fn formatFloatValue(
-//     value: var,
-//     comptime fmt: []const u8,
-//     options: FormatOptions,
-//     context: var,
-//     comptime Errors: type,
-//     output: fn (@TypeOf(context), []const u8) Errors!void,
-// ) Errors!void {
-//     if (fmt.len == 0 or comptime std.mem.eql(u8, fmt, "e")) {
-//         return formatFloatScientific(value, options, context, Errors, output);
-//     } else if (comptime std.mem.eql(u8, fmt, "d")) {
-//         return formatFloatDecimal(value, options, context, Errors, output);
-//     } else {
-//         @compileError("Unknown format string: '" ++ fmt ++ "'");
-//     }
-// }
+fn formatFloatValue(
+    value: var,
+    comptime fmt: []const u8,
+    options: FormatOptions,
+    generator: *Generator([]const u8),
+) void {
+    if (fmt.len == 0 or comptime std.mem.eql(u8, fmt, "e")) {
+        return formatFloatScientific(value, options, generator);
+    } else if (comptime std.mem.eql(u8, fmt, "d")) {
+        @compileError("FIXME");
+        return formatFloatDecimal(value, options, context, Errors, output);
+    } else {
+        @compileError("Unknown format string: '" ++ fmt ++ "'");
+    }
+}
 
 // pub fn formatText(
 //     bytes: []const u8,
@@ -621,101 +620,98 @@ pub fn formatAsciiChar(
 //     }
 // }
 
-// // Print a float in scientific notation to the specified precision. Null uses full precision.
-// // It should be the case that every full precision, printed value can be re-parsed back to the
-// // same type unambiguously.
-// pub fn formatFloatScientific(
-//     value: var,
-//     options: FormatOptions,
-//     context: var,
-//     comptime Errors: type,
-//     output: fn (@TypeOf(context), []const u8) Errors!void,
-// ) Errors!void {
-//     var x = @floatCast(f64, value);
+// Print a float in scientific notation to the specified precision. Null uses full precision.
+// It should be the case that every full precision, printed value can be re-parsed back to the
+// same type unambiguously.
+pub fn formatFloatScientific(
+    value: var,
+    options: FormatOptions,
+    generator: *Generator([]const u8),
+) void {
+    var x = @floatCast(f64, value);
 
-//     // Errol doesn't handle these special cases.
-//     if (math.signbit(x)) {
-//         try output(context, "-");
-//         x = -x;
-//     }
+    // Errol doesn't handle these special cases.
+    if (math.signbit(x)) {
+        generator.yield("-");
+        x = -x;
+    }
+    if (math.isNan(x)) {
+        return generator.yield("nan");
+    }
+    if (math.isPositiveInf(x)) {
+        return generator.yield("inf");
+    }
+    if (x == 0.0) {
+        generator.yield("0");
+        if (options.precision) |precision| {
+            if (precision != 0) {
+                generator.yield(".");
+                var i: usize = 0;
+                // FIXME: figure out why having this block leads to "Instruction does not dominate all uses!"
+                while (i < precision) : (i += 1) {
+                    // generator.yield( "0");
+                }
+            }
+        } else {
+            generator.yield(".0");
+        }
+        generator.yield("e+00");
+        return;
+    }
 
-//     if (math.isNan(x)) {
-//         return output(context, "nan");
-//     }
-//     if (math.isPositiveInf(x)) {
-//         return output(context, "inf");
-//     }
-//     if (x == 0.0) {
-//         try output(context, "0");
+    assert(false); // FIXME
+    // var buffer: [32]u8 = undefined;
+    // var float_decimal = errol.errol3(x, buffer[0..]);
 
-//         if (options.precision) |precision| {
-//             if (precision != 0) {
-//                 try output(context, ".");
-//                 var i: usize = 0;
-//                 while (i < precision) : (i += 1) {
-//                     try output(context, "0");
-//                 }
-//             }
-//         } else {
-//             try output(context, ".0");
-//         }
+    // if (options.precision) |precision| {
+    //     errol.roundToPrecision(&float_decimal, precision, errol.RoundMode.Scientific);
 
-//         try output(context, "e+00");
-//         return;
-//     }
+    //     try output(context, float_decimal.digits[0..1]);
 
-//     var buffer: [32]u8 = undefined;
-//     var float_decimal = errol.errol3(x, buffer[0..]);
+    //     // {e0} case prints no `.`
+    //     if (precision != 0) {
+    //         try output(context, ".");
 
-//     if (options.precision) |precision| {
-//         errol.roundToPrecision(&float_decimal, precision, errol.RoundMode.Scientific);
+    //         var printed: usize = 0;
+    //         if (float_decimal.digits.len > 1) {
+    //             const num_digits = math.min(float_decimal.digits.len, precision + 1);
+    //             try output(context, float_decimal.digits[1..num_digits]);
+    //             printed += num_digits - 1;
+    //         }
 
-//         try output(context, float_decimal.digits[0..1]);
+    //         while (printed < precision) : (printed += 1) {
+    //             try output(context, "0");
+    //         }
+    //     }
+    // } else {
+    //     try output(context, float_decimal.digits[0..1]);
+    //     try output(context, ".");
+    //     if (float_decimal.digits.len > 1) {
+    //         const num_digits = if (@TypeOf(value) == f32) math.min(@as(usize, 9), float_decimal.digits.len) else float_decimal.digits.len;
 
-//         // {e0} case prints no `.`
-//         if (precision != 0) {
-//             try output(context, ".");
+    //         try output(context, float_decimal.digits[1..num_digits]);
+    //     } else {
+    //         try output(context, "0");
+    //     }
+    // }
 
-//             var printed: usize = 0;
-//             if (float_decimal.digits.len > 1) {
-//                 const num_digits = math.min(float_decimal.digits.len, precision + 1);
-//                 try output(context, float_decimal.digits[1..num_digits]);
-//                 printed += num_digits - 1;
-//             }
+    // try output(context, "e");
+    // const exp = float_decimal.exp - 1;
 
-//             while (printed < precision) : (printed += 1) {
-//                 try output(context, "0");
-//             }
-//         }
-//     } else {
-//         try output(context, float_decimal.digits[0..1]);
-//         try output(context, ".");
-//         if (float_decimal.digits.len > 1) {
-//             const num_digits = if (@TypeOf(value) == f32) math.min(@as(usize, 9), float_decimal.digits.len) else float_decimal.digits.len;
-
-//             try output(context, float_decimal.digits[1..num_digits]);
-//         } else {
-//             try output(context, "0");
-//         }
-//     }
-
-//     try output(context, "e");
-//     const exp = float_decimal.exp - 1;
-
-//     if (exp >= 0) {
-//         try output(context, "+");
-//         if (exp > -10 and exp < 10) {
-//             try output(context, "0");
-//         }
-//         try formatInt(exp, 10, false, FormatOptions{ .width = 0 }, context, Errors, output);
-//     } else {
-//         try output(context, "-");
-//         if (exp > -10 and exp < 10) {
-//             try output(context, "0");
-//         }
-//         try formatInt(-exp, 10, false, FormatOptions{ .width = 0 }, context, Errors, output);
-//     }
-// }
+    // if (exp >= 0) {
+    //     try output(context, "+");
+    //     if (exp > -10 and exp < 10) {
+    //         try output(context, "0");
+    //     }
+    //     try formatInt(exp, 10, false, FormatOptions{ .width = 0 }, context, Errors, output);
+    // } else {
+    //     try output(context, "-");
+    //     if (exp > -10 and exp < 10) {
+    //         try output(context, "0");
+    //     }
+    //     try formatInt(-exp, 10, false, FormatOptions{ .width = 0 }, context, Errors, output);
+    // }
+}
 
 // // Print a float of the format x.yyyyy where the number of y is specified by the precision argument.
 // // By default floats are printed at full precision (no rounding).
@@ -1359,20 +1355,20 @@ test "int.padded" {
 //     try testFmt("f64: 1.00001e+05", "f64: {e:.5}", .{@as(f64, @bitCast(f32, @as(u32, 1203982400)))});
 // }
 
-// test "float.special" {
-//     if (builtin.os == .linux and builtin.arch == .arm and builtin.abi == .musleabihf) {
-//         // TODO https://github.com/ziglang/zig/issues/3289
-//         return error.SkipZigTest;
-//     }
-//     try testFmt("f64: nan", "f64: {}", .{math.nan_f64});
-//     // negative nan is not defined by IEE 754,
-//     // and ARM thus normalizes it to positive nan
-//     if (builtin.arch != builtin.Arch.arm) {
-//         try testFmt("f64: -nan", "f64: {}", .{-math.nan_f64});
-//     }
-//     try testFmt("f64: inf", "f64: {}", .{math.inf_f64});
-//     try testFmt("f64: -inf", "f64: {}", .{-math.inf_f64});
-// }
+test "float.special" {
+    if (builtin.os == .linux and builtin.arch == .arm and builtin.abi == .musleabihf) {
+        // TODO https://github.com/ziglang/zig/issues/3289
+        return error.SkipZigTest;
+    }
+    try testFmt("f64: nan", "f64: {}", .{math.nan_f64});
+    // negative nan is not defined by IEE 754,
+    // and ARM thus normalizes it to positive nan
+    if (builtin.arch != builtin.Arch.arm) {
+        try testFmt("f64: -nan", "f64: {}", .{-math.nan_f64});
+    }
+    try testFmt("f64: inf", "f64: {}", .{math.inf_f64});
+    try testFmt("f64: -inf", "f64: {}", .{-math.inf_f64});
+}
 
 // test "float.decimal" {
 //     if (builtin.os == .linux and builtin.arch == .arm and builtin.abi == .musleabihf) {
