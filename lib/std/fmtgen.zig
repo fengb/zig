@@ -5,6 +5,7 @@ const mem = std.mem;
 const builtin = @import("builtin");
 const errol = @import("fmt/errol.zig");
 const lossyCast = std.math.lossyCast;
+const fmtgen = @This();
 
 pub const default_max_depth = 3;
 
@@ -355,11 +356,15 @@ pub fn formatType(
     allocator: *mem.Allocator,
     max_depth: usize,
 ) void {
+    const T = @TypeOf(value);
+
     if (comptime std.mem.eql(u8, fmt, "*")) {
-        return formatPtr(@TypeOf(value).Child, @ptrToInt(value), generator);
+        return formatPtr(T.Child, @ptrToInt(value), generator);
+    }
+    if (comptime std.meta.trait.hasFn("format")(T)) {
+        return value.format(fmt, options, generator);
     }
 
-    const T = @TypeOf(value);
     switch (@typeInfo(T)) {
         .ComptimeInt, .Int, .Float => {
             return formatValue(value, fmt, options, generator);
@@ -398,17 +403,11 @@ pub fn formatType(
             return generator.yield(@errorName(value));
         },
         .Enum => {
-            // if (comptime std.meta.trait.hasFn("format")(T)) {
-            //     return value.format(fmt, options, context, Errors, output);
-            // }
             generator.yield(@typeName(T));
             generator.yield(".");
             return @call(.{ .modifier = .always_tail }, formatType, .{ @tagName(value), "", options, generator, allocator, max_depth });
         },
         .Union => {
-            // if (comptime std.meta.trait.hasFn("format")(T)) {
-            //     return value.format(fmt, options, context, Errors, output);
-            // }
             generator.yield(@typeName(T));
             if (max_depth == 0) {
                 return generator.yield("{ ... }");
@@ -437,9 +436,6 @@ pub fn formatType(
             }
         },
         .Struct => {
-            // if (comptime std.meta.trait.hasFn("format")(T)) {
-            //     return value.format(fmt, options, context, Errors, output);
-            // }
             generator.yield(@typeName(T));
             if (max_depth == 0) {
                 return generator.yield("{ ... }");
@@ -1449,42 +1445,42 @@ test "float.libc.sanity" {
     try testFmt("f64: 18014400656965630.00000", "f64: {d:.5}", .{@as(f64, @bitCast(f32, @as(u32, 1518338049)))});
 }
 
-// test "custom" {
-//     const Vec2 = struct {
-//         const SelfType = @This();
-//         x: f32,
-//         y: f32,
+test "custom" {
+    const Vec2 = struct {
+        const SelfType = @This();
+        x: f32,
+        y: f32,
 
-//         pub fn format(
-//             self: SelfType,
-//             comptime fmt: []const u8,
-//             options: FormatOptions,
-//             context: var,
-//             comptime Errors: type,
-//             output: fn (@TypeOf(context), []const u8) Errors!void,
-//         ) Errors!void {
-//             if (fmt.len == 0 or comptime std.mem.eql(u8, fmt, "p")) {
-//                 return std.fmt.format(context, Errors, output, "({d:.3},{d:.3})", .{ self.x, self.y });
-//             } else if (comptime std.mem.eql(u8, fmt, "d")) {
-//                 return std.fmt.format(context, Errors, output, "{d:.3}x{d:.3}", .{ self.x, self.y });
-//             } else {
-//                 @compileError("Unknown format character: '" ++ fmt ++ "'");
-//             }
-//         }
-//     };
+        pub fn format(
+            self: SelfType,
+            comptime fmt: []const u8,
+            options: FormatOptions,
+            generator: *Generator([]const u8),
+        ) void {
+            // Any of these recursive calls crashes the compiler:
+            // Assertion failed at /Users/benjamin.feng/projects/zig/src/analyze.cpp:9037 in resolve_llvm_types. This is a bug in the Zig compiler.
+            if (fmt.len == 0 or comptime std.mem.eql(u8, fmt, "p")) {
+                return fmtgen.format(generator, "({d:.3},{d:.3})", .{ self.x, self.y });
+            } else if (comptime std.mem.eql(u8, fmt, "d")) {
+                return fmtgen.format(generator, "{d:.3}x{d:.3}", .{ self.x, self.y });
+            } else {
+                @compileError("Unknown format character: '" ++ fmt ++ "'");
+            }
+        }
+    };
 
-//     var buf1: [32]u8 = undefined;
-//     var value = Vec2{
-//         .x = 10.2,
-//         .y = 2.22,
-//     };
-//     try testFmt("point: (10.200,2.220)\n", "point: {}\n", .{&value});
-//     try testFmt("dim: 10.200x2.220\n", "dim: {d}\n", .{&value});
+    var buf1: [32]u8 = undefined;
+    var value = Vec2{
+        .x = 10.2,
+        .y = 2.22,
+    };
+    try testFmt("point: (10.200,2.220)\n", "point: {}\n", .{&value});
+    try testFmt("dim: 10.200x2.220\n", "dim: {d}\n", .{&value});
 
-//     // same thing but not passing a pointer
-//     try testFmt("point: (10.200,2.220)\n", "point: {}\n", .{value});
-//     try testFmt("dim: 10.200x2.220\n", "dim: {d}\n", .{value});
-// }
+    // same thing but not passing a pointer
+    try testFmt("point: (10.200,2.220)\n", "point: {}\n", .{value});
+    try testFmt("dim: 10.200x2.220\n", "dim: {d}\n", .{value});
+}
 
 test "struct" {
     const S = struct {
