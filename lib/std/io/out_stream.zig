@@ -36,7 +36,11 @@ pub fn OutStream(comptime WriteError: type) type {
         }
 
         pub fn print(self: *Self, comptime format: []const u8, args: var) Error!void {
-            return std.fmt.format(self, Error, self.writeFn, format, args);
+            var generator = std.fmtgen.Generator([]const u8).init();
+            _ = async std.fmtgen.format(&generator, format, args);
+            while (generator.next()) |bytes| {
+                try self.writeFn(self, bytes);
+            }
         }
 
         pub fn writeByte(self: *Self, byte: u8) Error!void {
