@@ -80,21 +80,36 @@ pub fn atomicStoreN(comptime T: type, ptr: *T, val: T, order: std.builtin.Atomic
     ptr.* = val;
 }
 
-pub fn atomicCompareExchangeN(comptime T: type, ptr: *T, expected: *T, new: T, success: std.builtin.AtomicOrder, fail: std.builtin.AtomicOrder) usize {
-    if (isLockFree(T)) {
-        return @cmpxchgStrong(T, ptr, expected.*, new, success, fail);
-    }
+pub fn makeAtomicCompareExchange(comptime T: type) fn (ptr: *T, expected: *T, desired: T, success: usize, failure: usize) usize {
+    return (struct {
+        /// Atomic compare and exchange operation.  If the value at *ptr is identical
+        /// to the value at *expected, then this copies value at *desired to *ptr.  If
+        /// they  are not, then this stores the current value from *ptr in *expected.
+        ///
+        /// This function returns 1 if the exchange takes place or 0 if it fails.
+        pub fn atomicCompareExchange(ptr: *T, expected: *T, desired: T, success: usize, failure: usize) usize {
+            if (isLockFree(T)) {
+                // TODO: convert C ABI success / fail
+                if (@cmpxchgStrong(T, ptr, expected.*, desired, .Monotonic, .Monotonic) == null) {
+                    return 1;
+                } else {
+                    expected.* = ptr.*;
+                    return 0;
+                }
+            }
 
-    const l = Lock.forPtr(T, ptr);
-    l.lock();
-    defer l.unlock();
+            const l = Lock.forPtr(T, ptr);
+            l.lock();
+            defer l.unlock();
 
-    if (ptr.* == expected.*) {
-        ptr.* = new;
-        return 1;
-    }
-    expected.* = ptr.*;
-    return 0;
+            if (ptr.* == expected.*) {
+                ptr.* = desired;
+                return 1;
+            }
+            expected.* = ptr.*;
+            return 0;
+        }
+    }).atomicCompareExchange;
 }
 
 pub fn makeAtomicRmw(comptime T: type, comptime op: std.builtin.AtomicRmwOp) fn (ptr: *T, val: T, model: usize) T {
